@@ -88,7 +88,7 @@ begin
 			plot_particles(particles)
 		end
 		gif(animation, fps = 24)
-	end
+	end;
 end
 
 # ╔═╡ ecb26cd2-eeb0-4d37-bc49-7c20ac8119a1
@@ -1012,7 +1012,7 @@ version = "0.9.1+5"
 # ╠═7d1c6e10-3148-48d6-9fc8-1dc3e07b2d4b
 # ╟─4405e859-57ad-4594-a921-3ffac965e8a1
 # ╟─ecb26cd2-eeb0-4d37-bc49-7c20ac8119a1
-# ╠═5b0646ff-cdc8-4183-96ce-1b8e125a0afa
+# ╟─5b0646ff-cdc8-4183-96ce-1b8e125a0afa
 # ╠═ad40bbc7-eb5a-41c2-9c47-38a4b6034212
 # ╠═86c8e8fc-000d-487b-826e-62adf9c83d50
 # ╠═4b32e31c-ff7d-4a15-b5a5-3fcc686100fe
