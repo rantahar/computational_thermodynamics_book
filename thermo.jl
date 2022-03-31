@@ -32,7 +32,7 @@ end
 
 # ╔═╡ 7d1c6e10-3148-48d6-9fc8-1dc3e07b2d4b
 function dvdt(x, v)
-	return 0
+	return [0, 0]
 end
 
 # ╔═╡ 4405e859-57ad-4594-a921-3ffac965e8a1
@@ -42,12 +42,14 @@ begin
 		v::Vector{Float64}
 	end
 	function Particle()
-		return Particle(rand(2), rand(2))
+		particle = Particle(rand(2), rand(2))
+		particle.v = particle.v .- 0.5
+		return particle
 	end
 	function create_particles(N::Int64)
 		particles = Vector{Particle}(undef, N)
 		for i in 1:N
-			particles[i] = Particle(rand(2), rand(2))
+			particles[i] = Particle()
 		end
 		return particles
 	end
@@ -88,7 +90,11 @@ begin
 			plot_particles(particles)
 		end
 		gif(animation, fps = 24)
-	end;
+	end
+	function simulate_particles(N::Int64)
+		particles = create_particles(N)
+		animate_particles(particles)
+	end
 end
 
 # ╔═╡ ecb26cd2-eeb0-4d37-bc49-7c20ac8119a1
@@ -104,18 +110,101 @@ gr( xlims=[0,1],
 );
 
 # ╔═╡ 5b0646ff-cdc8-4183-96ce-1b8e125a0afa
+simulate_particles(1)
+
+# ╔═╡ ad40bbc7-eb5a-41c2-9c47-38a4b6034212
+md"""
+It's natural to describe a single particle using its location and its speed. These two vectors let us predict the position of the particle at any time in the future.
+
+In thermodynamics, we want to describe a millions of air molecules. Now we cannot really talk about each particle individually. Let's take a look at a simulation with 100 particles (a million would be a bit too much for our computer).
+"""
+
+# ╔═╡ 86c8e8fc-000d-487b-826e-62adf9c83d50
 begin
-	particles = create_particles(1)
+	particles = create_particles(100)
 	animate_particles(particles)
 end
 
-# ╔═╡ ad40bbc7-eb5a-41c2-9c47-38a4b6034212
+# ╔═╡ 78aad25d-d5f1-4dfb-9402-80a33cd91748
+md"""
+That's a lot more chaotic! Now the location and velocity of an individual particle is not very meaningful. What can we say about all of them at once?
 
+### Energy
 
-# ╔═╡ 86c8e8fc-000d-487b-826e-62adf9c83d50
+We could calculate the average location, but since they are all inside the box, this does not give us a lot of information. Similarly, the velocities will add up to zero, since the box does not move. The total energy is a bit more meaningfull. Fast moving particles have high energy, and the more and faster particles, the higher total energy.
 
+The energy of a particle is $$\frac 12 mv^2$$, where m is the mass of a particle. For our purposes, let's say each particle weights $$m=0.001$$g.
 
-# ╔═╡ 4b32e31c-ff7d-4a15-b5a5-3fcc686100fe
+The total energy is
+
+$$E = \sum_p \frac 12 mv_p^2.$$
+
+In code we can write this a
+"""
+
+# ╔═╡ 00dde5a5-b72c-416f-aa42-a77b162680de
+# Simulation with the energy graphed in the right
+begin
+	energy = 0
+	for particle in particles
+		energy += 0.5 * 0.001 * sum(particle.v .^ 2)
+	end
+	energy
+end
+
+# ╔═╡ 7cd75589-baa3-487a-92fb-b9c78e14e25e
+md"""
+So the energy is constant during the simulation. Since energy is conserved, this is what we expected. But does this mean that energy is also a meaningless quantity?
+
+In most real systems energy can change when particles bump into the boundaries of the box, when they leave through a small crack or when someone heats up the box, kicking them around. We can make this happen in our simulation as well. If we leave the box open, particles will leave and energy will decrease.
+"""
+
+# ╔═╡ 7a0ff26a-6db4-443e-b93e-5d62f79d8424
+# Simulation with a hole in the box
+
+# ╔═╡ 7b202300-91ff-45e4-b933-75c6083b256c
+md"""
+### Pressure
+
+"""
+
+# ╔═╡ 1e16d2ca-abbb-4214-a82a-773812bde621
+md"""
+### Particle Number
+
+Well, clearly the number of particles is not constant anymore, either. This one is especially hard to measure in practice, we cannot actually count all the air molecules in the room, but we can count them in our simulation.
+"""
+
+# ╔═╡ 93e8bc54-27e4-4c24-83fb-19d0a2b320b1
+# Before going to entropy, introduce heater as well. Particles moving in and out, what changes? 
+# Can we scale up and look at some statistics? 
+
+# ╔═╡ ccee3ca7-54a7-406c-be5d-0f604f6bee11
+md"""
+## Entropy
+
+Now we are getting more complicated. Entropy is related to the particle number, in a way, but measuring it does not require actually counting all the particles. We will come back to measuring it once we have defined temperature, but for now let's just define it for our particles-in-a-box simulation.
+
+In generat entropy is related to the number of possible states the whole system can be in. For the particles-in-a-box, each particle can be in any location and move at any velocity, so there are an infinite number of options for each. But adding one more particle increases the options in a straightforward way.
+
+If a single particle can be in $$V$$ positions ($$V$$ is essentially the volume of the box), and can have any of $$V_P$$ velocities, a system with a single particle can be in
+
+$$n = V\times V_P$$
+
+states. For two particles this is 
+
+$$n = V\times V_P\times V\times V_P$$
+
+and so on. So for $$N$$ particles there are $$n=(V\times V_P)^N$$ possible positions.
+
+The entropy is actually the power $$N$$, or more formally the natural logarithm of $$n$$, which is
+
+$$S=\log (V\times V_P)^N = N \; \log(V\times V_P)$$
+
+So in the end the entropy, in this case at least, is the number of particles multiplied by a factor. In our simulation, it changes only when particles leave the box, but notice that it would also change if we made the box bigger or smaller.
+"""
+
+# ╔═╡ 5f3c3d8a-fd2b-4be3-809e-1bf5398a88e2
 
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -1010,11 +1099,19 @@ version = "0.9.1+5"
 # ╟─f401a513-8d1f-40e3-9e17-3610d49af6d5
 # ╠═3f6072c9-335e-4249-904b-8be93cf032b1
 # ╠═7d1c6e10-3148-48d6-9fc8-1dc3e07b2d4b
-# ╟─4405e859-57ad-4594-a921-3ffac965e8a1
+# ╠═4405e859-57ad-4594-a921-3ffac965e8a1
 # ╟─ecb26cd2-eeb0-4d37-bc49-7c20ac8119a1
 # ╟─5b0646ff-cdc8-4183-96ce-1b8e125a0afa
-# ╠═ad40bbc7-eb5a-41c2-9c47-38a4b6034212
+# ╟─ad40bbc7-eb5a-41c2-9c47-38a4b6034212
 # ╠═86c8e8fc-000d-487b-826e-62adf9c83d50
-# ╠═4b32e31c-ff7d-4a15-b5a5-3fcc686100fe
+# ╟─78aad25d-d5f1-4dfb-9402-80a33cd91748
+# ╠═00dde5a5-b72c-416f-aa42-a77b162680de
+# ╟─7cd75589-baa3-487a-92fb-b9c78e14e25e
+# ╠═7a0ff26a-6db4-443e-b93e-5d62f79d8424
+# ╠═7b202300-91ff-45e4-b933-75c6083b256c
+# ╠═1e16d2ca-abbb-4214-a82a-773812bde621
+# ╠═93e8bc54-27e4-4c24-83fb-19d0a2b320b1
+# ╠═ccee3ca7-54a7-406c-be5d-0f604f6bee11
+# ╠═5f3c3d8a-fd2b-4be3-809e-1bf5398a88e2
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
