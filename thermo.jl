@@ -80,7 +80,7 @@ begin
 	function plot_particles(particles::Vector{Particle})
 		x_coords = map(p -> p.x[1], particles)
 		y_coords = map(p -> p.x[2], particles)
-		plot(x_coords, y_coords, seriestype=:scatter, m=:circle, markersize=6)
+		return plot(x_coords, y_coords, seriestype=:scatter, m=:circle, markersize=6)
 	end
 	function animate_particles(particles::Vector{Particle})
 		animation = @animate for step in 1:500
@@ -88,6 +88,17 @@ begin
 				update!(particle, 1/24)
 			end
 			plot_particles(particles)
+		end
+		gif(animation, fps = 24)
+	end
+	function animate_with_distribution(particles::Vector{Particle})
+		animation = @animate for step in 1:500
+			for particle in particles
+				update!(particle, 1/24)
+			end
+			plot1 = plot_particles(particles)
+			plot2 = plot([1,2,3,1,2]);
+			plot(plot1, plot2, layout = (1, 2), legend = false)
 		end
 		gif(animation, fps = 24)
 	end
@@ -125,10 +136,32 @@ begin
 	animate_particles(particles)
 end
 
+# ╔═╡ df316a1b-0f79-44ae-a9db-d41863709530
+md"""
+That's a lot more chaotic! Clearly the computer can still describe the entire system using the location and velocity of each particle, but it's already too much for a human to track. Still, it seems that we can say something about the system as a whole.
+
+What can we say about all the particles at once? They cannot get outside the box, so we can roughly describe their location ("inside the box"). This also means that on average, they are not moving. So if we add up their velocities, we expect to get something close to $$0$$.
+
+That is kind of trivial. Let's take this a bit further. What are the energies of the particles? This is related to the velocity, $$E_p = mv_p^2$$, but since we take the square, the energy is always positive and does not add up to $$0$$.
+
+But even more interesting is the distribution. Below we show the same simulation, but with an evolving plot on the right showing the distribution of velocities ($$x$$ and $$y$$ directions separately) and energies.
+"""
+
+# ╔═╡ ca4eb6e9-3eb1-4bc0-9953-c6aa36d6848e
+begin
+	animation = @animate for step in 1:100
+		for particle in particles
+			update!(particle, 1/24)
+		end
+		plot1 = plot_particles(particles)
+		plot2 = plot([1,2,3,1,2]);
+		plot(plot1, plot2, layout = (1, 2), legend = false)
+	end
+	gif(animation, fps = 24)
+end
+
 # ╔═╡ 78aad25d-d5f1-4dfb-9402-80a33cd91748
 md"""
-That's a lot more chaotic! Now the location and velocity of an individual particle is not very meaningful. What can we say about all of them at once?
-
 ### Energy
 
 We could calculate the average location, but since they are all inside the box, this does not give us a lot of information. Similarly, the velocities will add up to zero, since the box does not move. The total energy is a bit more meaningfull. Fast moving particles have high energy, and the more and faster particles, the higher total energy.
@@ -1104,6 +1137,8 @@ version = "0.9.1+5"
 # ╟─5b0646ff-cdc8-4183-96ce-1b8e125a0afa
 # ╟─ad40bbc7-eb5a-41c2-9c47-38a4b6034212
 # ╠═86c8e8fc-000d-487b-826e-62adf9c83d50
+# ╠═df316a1b-0f79-44ae-a9db-d41863709530
+# ╠═ca4eb6e9-3eb1-4bc0-9953-c6aa36d6848e
 # ╟─78aad25d-d5f1-4dfb-9402-80a33cd91748
 # ╠═00dde5a5-b72c-416f-aa42-a77b162680de
 # ╟─7cd75589-baa3-487a-92fb-b9c78e14e25e
