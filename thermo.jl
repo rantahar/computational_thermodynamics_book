@@ -11,11 +11,25 @@ using Plots
 md"""
 # Computational Introduction to Thermodynamics
 
-In this essay I will explain what **temperature** is, starting from Newton's equations of motion. While temperature is a familiar every-day concept, the way is comes about from fundamental physics is surprisingly weird. On the way we will need to introduce many other fundamental concepts in thermodynamics.
+In this essay I will explain what **temperature** is. While temperature is a familiar every-day concept, the way is comes about from fundamental physics is surprisingly weird. On the way we will need to introduce many other fundamental concepts in thermodynamics.
 
-This essay is also an experiment in using computational modeling to teach new concepts if physics. Traditional course books would use mathematical exercises and pictures to explain these topics. This is of course useful, and has a centuries of history, but modern tools allow us to make course books better.
+This essay is also an experiment in using computational modeling to teach new concepts. Traditional course books would use mathematical exercises and pictures to explain these topics. These are both great innovations and have their place in this essay, and any course book on physics. Still, most people do most of their reading online these days, and the interactive medium of a webpage gives us a lot more freedom to experiment and develop the technology of a course book.
 
-This essay contains all of the above, but we will also models and animations to make things clearer. Modeling exercises will help you gain intuition and remember the topics of the essay. But the best way of explaining what I mean is to just go into it. We will start by writing and displaying a model of a single atom in a box. This will be the basic building block of our model of matter with temperature, pressure and so on.
+Programming is a necessary every day skill for many people. It's at least as important to learn as calculus. Yet, it's currently overlooked in teaching even the subjects where it fits in the easiest, such as physics, math or economy. We can use computational modeling exercises just as well as pen-and-paper calculations to teach these fields. Modeling is especially good in creating an intuition about the subject, since we can automatically visualize the result and build animations much easier than in calculus exercises.
+
+But the best way of explaining what I mean is to just go into it. We will start by writing and displaying a model of a single atom in a box. This will be the basic building block of our model of matter with temperature, pressure and so on.
+
+#### Prerequisites
+
+The first two prerequisites link to [Khan Academy](https://www.khanacademy.org/), which is a great learning resource. It's courses currently cover most of elentary school and high school topics, and it includes some unversity courses as well.
+
+1. [Newtons equations of motion](https://www.khanacademy.org/science/in-in-class9th-physics-india/in-in-motion/in-in-problem-solving-using-kinematic-equations/v/using-equations-of-motion-1-step-numerical)
+2. [Elastic collisions](https://www.khanacademy.org/science/physics/linear-momentum/elastic-and-inelastic-collisions/v/elastic-and-inelastic-collisions)
+
+3. Calculus: integrals, derivatives, exponentials and logarithms. You can skip these if you are only interested in getting the gist, and don't need the exact mathematical derivations. They do help in getting the overall picture.
+
+5. (optional) Programming. Knowing some programming is useful, but not necessary. I will explain things on the way.
+
 """
 
 # ╔═╡ 8d131083-957c-473c-8180-34d24c34e258
@@ -1127,12 +1141,12 @@ version = "0.9.1+5"
 """
 
 # ╔═╡ Cell order:
-# ╟─a0b09f56-af34-11ec-37f5-67140fa6bdd9
+# ╠═a0b09f56-af34-11ec-37f5-67140fa6bdd9
 # ╟─8d131083-957c-473c-8180-34d24c34e258
 # ╟─f401a513-8d1f-40e3-9e17-3610d49af6d5
 # ╠═3f6072c9-335e-4249-904b-8be93cf032b1
 # ╠═7d1c6e10-3148-48d6-9fc8-1dc3e07b2d4b
-# ╠═4405e859-57ad-4594-a921-3ffac965e8a1
+# ╟─4405e859-57ad-4594-a921-3ffac965e8a1
 # ╟─ecb26cd2-eeb0-4d37-bc49-7c20ac8119a1
 # ╟─5b0646ff-cdc8-4183-96ce-1b8e125a0afa
 # ╟─ad40bbc7-eb5a-41c2-9c47-38a4b6034212
