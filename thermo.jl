@@ -105,7 +105,7 @@ begin
 		x_coords = map(p -> p.x[1], particles)
 		y_coords = map(p -> p.x[2], particles)
 		return plot(
-			x_coords, y_coords, seriestype=:scatter, m=:circle, markersize=6, 
+			x_coords, y_coords, seriestype=:scatter, m=:circle, markersize=6,
 			xlims=[0,1], ylims=[0,1], aspect_ratio=:equal, framestyle=:box,
 			grid=(:none), legend=false, xticks=0, yticks=0, size=(400,400)
 		)
@@ -160,11 +160,21 @@ begin
 		end
 		return n
 	end
+	function energy_in_corner(particles)
+		E = 0
+		for particle in particles
+			if particle.x[1] < 0.5 && particle.x[2] < 0.5
+				E += energy(particle)
+			end
+		end
+		return E
+	end
 	function plot_density(vector)
 		histogram = fit(Histogram, vector, nbins=25)
 		plot(histogram, xlims=:auto, xticks=:auto, yticks=:auto, aspect_ratio=:auto, ylims=:auto, grid=:auto, size=(400,200))
 	end
 	n_corner = Vector{Int64}()
+	e_corner = Vector{Float64}()
 	function animate_frame_with_densities(particles, next_time)
 		global current_time
 		dt = next_time - current_time
@@ -194,6 +204,25 @@ begin
 		plot1 = plot_particles(particles);
 		plot2 = plot(n_corner, xlims=:auto, xticks=:auto, yticks=:auto, aspect_ratio=:auto, ylims=:auto, grid=:auto, size=(400,200));
 		plot3 = plot_density(n_corner);
+		l = @layout [
+    		a{0.5w} grid(2,1)
+		]
+		plot(plot1, plot2, plot3, layout = l, legend = false)
+	end
+	function animate_frame_with_energy_distribution(particles, next_time)
+		global current_time
+		dt = next_time - current_time
+		if dt > 0
+			dt = min(0.1, dt)
+			for particle in particles
+				update!(particle, dt)
+			end
+		end
+		append!(e_corner, energy_in_corner(particles))
+		current_time = next_time
+		plot1 = plot_particles(particles);
+		plot2 = plot(e_corner, xlims=:auto, xticks=:auto, yticks=:auto, aspect_ratio=:auto, ylims=:auto, grid=:auto, size=(400,200));
+		plot3 = plot_density(e_corner);
 		l = @layout [
     		a{0.5w} grid(2,1)
 		]
@@ -241,7 +270,7 @@ Instead, we can talk about the system as a whole. There are some rather simple t
 
 It seems we should be able to give more information that a human being can understand. We know there are things like temperature and pressure, that we often deal with in every day life.
 
-The total number of particles is not very interesting. It's just 100. But here is the crucial step: We are not actually interested in the total number of particles in the universe. We are interested in the number of particles in our room. Particles enter and leave all the time, so the number is not constant. 
+The total number of particles is not very interesting. It's just 100. But here is the crucial step: We are not actually interested in the total number of particles in the universe. We are interested in the number of particles in our room. Particles enter and leave all the time, so the number is not constant.
 
 Let's say we live in the lower left corner of the box. We want to know how many particles there are in this region, because this is somehow important to our every day lives. It has to do with pressure or something.
 
@@ -268,7 +297,21 @@ animate_frame_with_distribution(particles, t_many_particles)
 md"""
 If you lef this run for a while, it should roughly add up to a gaussian distribution around $$N/4$$.
 
-There are a couple of other numbers we could have looked at. The total energy inside our corner will also look like a gaussian distribution. 
+There are a couple of other numbers we could have looked at. The total energy inside our corner will also look like a gaussian distribution. Let's do the same with energy.
+
+The energy of a single particle is $$\frac12 m v^2$$, and the total energy in our room is the sum of the energies of the particles.
+"""
+
+# ╔═╡ bdfec8b5-297e-4996-b878-dcd6064598d7
+animate_frame_with_energy_distribution(particles, t_many_particles)
+
+# ╔═╡ c1b3752d-3875-48a4-bd79-971bab44dca1
+md"""
+The energy depends on the number of particles, but not in a completely straightforward way. Each particle has different energy, depending on their random velocities.
+
+In thermodynamics we are interested in the statistical expectation value of each quantity. While the exact total energy does not depend on the number of particles in a simple way, the mean energy does depend on the mean number of particles. If we increase the mean number of particles, for exampel by increasing the total number in the box, we expect the mean energy to increase by the same factor.
+
+There is another way to increase energy, though. We can kick the particles around, increasing their individual energies. This is what a heater does, so this should have something to do with temperature.
 """
 
 # ╔═╡ 78aad25d-d5f1-4dfb-9402-80a33cd91748
@@ -320,8 +363,8 @@ Well, clearly the number of particles is not constant anymore, either. This one 
 """
 
 # ╔═╡ 93e8bc54-27e4-4c24-83fb-19d0a2b320b1
-# Before going to entropy, introduce heater as well. Particles moving in and out, what changes? 
-# Can we scale up and look at some statistics? 
+# Before going to entropy, introduce heater as well. Particles moving in and out, what changes?
+# Can we scale up and look at some statistics?
 
 # ╔═╡ ccee3ca7-54a7-406c-be5d-0f604f6bee11
 md"""
@@ -335,7 +378,7 @@ If a single particle can be in $$V$$ positions ($$V$$ is essentially the volume 
 
 $$n = V\times V_P$$
 
-states. For two particles this is 
+states. For two particles this is
 
 $$n = V\times V_P\times V\times V_P$$
 
@@ -1291,7 +1334,9 @@ version = "0.9.1+5"
 # ╠═ab672333-8022-41e0-9998-0ac7665a91cf
 # ╟─63172e9b-68da-4bb5-aed1-830832852e8e
 # ╠═ea6e6664-b4e4-4917-9a1c-64738be2c7f6
-# ╠═8772600d-f090-43c2-81ba-4d1ad8f43331
+# ╟─8772600d-f090-43c2-81ba-4d1ad8f43331
+# ╠═bdfec8b5-297e-4996-b878-dcd6064598d7
+# ╠═c1b3752d-3875-48a4-bd79-971bab44dca1
 # ╟─78aad25d-d5f1-4dfb-9402-80a33cd91748
 # ╠═00dde5a5-b72c-416f-aa42-a77b162680de
 # ╟─7cd75589-baa3-487a-92fb-b9c78e14e25e
