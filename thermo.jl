@@ -4,8 +4,18 @@
 using Markdown
 using InteractiveUtils
 
+# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
+macro bind(def, element)
+    quote
+        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
+        local el = $(esc(element))
+        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
+        el
+    end
+end
+
 # ╔═╡ f401a513-8d1f-40e3-9e17-3610d49af6d5
-using Plots
+using Plots, PlutoUI
 
 # ╔═╡ a0b09f56-af34-11ec-37f5-67140fa6bdd9
 md"""
@@ -96,14 +106,17 @@ begin
 		y_coords = map(p -> p.x[2], particles)
 		return plot(x_coords, y_coords, seriestype=:scatter, m=:circle, markersize=6)
 	end
-	function animate_particles(particles::Vector{Particle})
-		animation = @animate for step in 1:500
+	animation_current_time = 0
+	function animate_next_frame(particles::Vector{Particle}, next_time::Float64)
+		global animation_current_time
+		dt = next_time - animation_current_time
+		if dt > 0
 			for particle in particles
-				update!(particle, 1/24)
+				update!(particle, dt)
 			end
-			plot_particles(particles)
 		end
-		gif(animation, fps = 24)
+		animation_current_time = next_time
+		plot_particles(particles)
 	end
 	function animate_with_distribution(particles::Vector{Particle})
 		animation = @animate for step in 1:500
@@ -120,6 +133,7 @@ begin
 		particles = create_particles(N)
 		animate_particles(particles)
 	end
+	nothing
 end
 
 # ╔═╡ ecb26cd2-eeb0-4d37-bc49-7c20ac8119a1
@@ -134,8 +148,16 @@ gr( xlims=[0,1],
     size=(400,400),
 );
 
-# ╔═╡ 5b0646ff-cdc8-4183-96ce-1b8e125a0afa
-simulate_particles(1)
+# ╔═╡ 67bc2286-e4be-4dc2-91c5-a67ffcfa67f9
+oneparticle = create_particles(1);
+
+# ╔═╡ 99bf9169-f372-4e48-a01b-3a0a79282a35
+@bind t_one_particle Clock(interval=0.04, fixed=true, start_running=true)
+
+# ╔═╡ dcb2cedf-aa9c-4b99-8872-8206acdd2836
+begin
+	animate_next_frame(oneparticle, t_one_particle/24)
+end
 
 # ╔═╡ ad40bbc7-eb5a-41c2-9c47-38a4b6034212
 md"""
@@ -144,10 +166,21 @@ It's natural to describe a single particle using its location and its speed. The
 In thermodynamics, we want to describe a millions of air molecules. Now we cannot really talk about each particle individually. Let's take a look at a simulation with 100 particles (a million would be a bit too much for our computer).
 """
 
+# ╔═╡ 482c6a29-21ba-4bd3-956d-68afdc77f58b
+@bind N Slider(1:100, show_value=true, default=100)
+
+# ╔═╡ bfb44336-ca3b-4fe0-aacc-cb5d85de9d9a
+particles = create_particles(N);
+
+# ╔═╡ 191ed2d5-fc18-458a-9ca3-9a4b900463bc
+@bind t Clock(interval=0.04, fixed=true, start_running=true)
+
+# ╔═╡ df60b474-2bd5-4326-8ca0-4db9e374d303
+t
+
 # ╔═╡ 86c8e8fc-000d-487b-826e-62adf9c83d50
 begin
-	particles = create_particles(100)
-	animate_particles(particles)
+	animate_next_frame(particles, t/24)
 end
 
 # ╔═╡ df316a1b-0f79-44ae-a9db-d41863709530
@@ -258,9 +291,11 @@ So in the end the entropy, in this case at least, is the number of particles mul
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 
 [compat]
 Plots = "~1.27.3"
+PlutoUI = "~0.7.38"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -269,6 +304,12 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.7.2"
 manifest_format = "2.0"
+
+[[deps.AbstractPlutoDingetjes]]
+deps = ["Pkg"]
+git-tree-sha1 = "8eaf9f1b4921132a4cff3f36a1d9ba923b14a481"
+uuid = "6e696c72-6542-2067-7265-42206c756150"
+version = "1.1.4"
 
 [[deps.Adapt]]
 deps = ["LinearAlgebra"]
@@ -493,6 +534,23 @@ deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll",
 git-tree-sha1 = "129acf094d168394e80ee1dc4bc06ec835e510a3"
 uuid = "2e76f6c2-a576-52d4-95c1-20adfe4de566"
 version = "2.8.1+1"
+
+[[deps.Hyperscript]]
+deps = ["Test"]
+git-tree-sha1 = "8d511d5b81240fc8e6802386302675bdf47737b9"
+uuid = "47d2ed2b-36de-50cf-bf87-49c2cf4b8b91"
+version = "0.0.4"
+
+[[deps.HypertextLiteral]]
+git-tree-sha1 = "2b078b5a615c6c0396c77810d92ee8c6f470d238"
+uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
+version = "0.9.3"
+
+[[deps.IOCapture]]
+deps = ["Logging", "Random"]
+git-tree-sha1 = "f7be53659ab06ddc986428d3a9dcc95f6fa6705a"
+uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
+version = "0.2.2"
 
 [[deps.IniFile]]
 git-tree-sha1 = "f550e6e32074c939295eb5ea6de31849ac2c9625"
@@ -762,6 +820,12 @@ deps = ["Base64", "Contour", "Dates", "Downloads", "FFMPEG", "FixedPointNumbers"
 git-tree-sha1 = "5f6e1309595e95db24342e56cd4dabd2159e0b79"
 uuid = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 version = "1.27.3"
+
+[[deps.PlutoUI]]
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "Markdown", "Random", "Reexport", "UUIDs"]
+git-tree-sha1 = "670e559e5c8e191ded66fa9ea89c97f10376bb4c"
+uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+version = "0.7.38"
 
 [[deps.Preferences]]
 deps = ["TOML"]
@@ -1141,17 +1205,23 @@ version = "0.9.1+5"
 """
 
 # ╔═╡ Cell order:
-# ╠═a0b09f56-af34-11ec-37f5-67140fa6bdd9
+# ╟─a0b09f56-af34-11ec-37f5-67140fa6bdd9
 # ╟─8d131083-957c-473c-8180-34d24c34e258
 # ╟─f401a513-8d1f-40e3-9e17-3610d49af6d5
 # ╠═3f6072c9-335e-4249-904b-8be93cf032b1
 # ╠═7d1c6e10-3148-48d6-9fc8-1dc3e07b2d4b
-# ╟─4405e859-57ad-4594-a921-3ffac965e8a1
+# ╠═4405e859-57ad-4594-a921-3ffac965e8a1
 # ╟─ecb26cd2-eeb0-4d37-bc49-7c20ac8119a1
-# ╟─5b0646ff-cdc8-4183-96ce-1b8e125a0afa
+# ╠═67bc2286-e4be-4dc2-91c5-a67ffcfa67f9
+# ╠═99bf9169-f372-4e48-a01b-3a0a79282a35
+# ╠═dcb2cedf-aa9c-4b99-8872-8206acdd2836
 # ╟─ad40bbc7-eb5a-41c2-9c47-38a4b6034212
+# ╠═bfb44336-ca3b-4fe0-aacc-cb5d85de9d9a
+# ╠═482c6a29-21ba-4bd3-956d-68afdc77f58b
+# ╠═191ed2d5-fc18-458a-9ca3-9a4b900463bc
+# ╠═df60b474-2bd5-4326-8ca0-4db9e374d303
 # ╠═86c8e8fc-000d-487b-826e-62adf9c83d50
-# ╠═df316a1b-0f79-44ae-a9db-d41863709530
+# ╟─df316a1b-0f79-44ae-a9db-d41863709530
 # ╠═ca4eb6e9-3eb1-4bc0-9953-c6aa36d6848e
 # ╟─78aad25d-d5f1-4dfb-9402-80a33cd91748
 # ╠═00dde5a5-b72c-416f-aa42-a77b162680de
