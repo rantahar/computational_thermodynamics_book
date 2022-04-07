@@ -104,19 +104,26 @@ begin
 	function plot_particles(particles::Vector{Particle})
 		x_coords = map(p -> p.x[1], particles)
 		y_coords = map(p -> p.x[2], particles)
-		return plot(x_coords, y_coords, seriestype=:scatter, m=:circle, markersize=6)
+		return plot(
+			x_coords, y_coords, seriestype=:scatter, m=:circle, markersize=6, 
+			xlims=[0,1], ylims=[0,1], aspect_ratio=:equal, framestyle=:box,
+			grid=(:none), legend=false, xticks=0, yticks=0, size=(400,400)
+		)
 	end
 	animation_current_time = 0
 	function animate_next_frame(particles::Vector{Particle}, next_time::Float64)
 		global animation_current_time
 		dt = next_time - animation_current_time
 		if dt > 0
+			dt = min(0.1, dt)
 			for particle in particles
 				update!(particle, dt)
 			end
 		end
 		animation_current_time = next_time
-		plot_particles(particles)
+		plot_particles(
+			particles
+		)
 	end
 	function animate_with_distribution(particles::Vector{Particle})
 		animation = @animate for step in 1:500
@@ -136,23 +143,69 @@ begin
 	nothing
 end
 
-# ╔═╡ ecb26cd2-eeb0-4d37-bc49-7c20ac8119a1
-gr( xlims=[0,1],
-    ylims=[0,1],
-    aspect_ratio=:equal,
-    framestyle=:box,
-	grid=(:none),
-	legend=false,
-	xticks=0,
-	yticks=0,
-    size=(400,400),
-);
+# ╔═╡ a1eec5e1-821f-4557-a73d-2ff366eb9e6a
+begin
+	using StatsBase
+	n_corner = Vector{Int64}()
+	current_time = 0
+	function energy(particle)
+		return 0.5 * 0.1 * (particle.v[1]^2 + particle.v[2]^2)
+	end
+	function n_in_corner(particles)
+		n = 0
+		for particle in particles
+			if particle.x[1] < 0.5 && particle.x[2] < 0.5
+				n += 1
+			end
+		end
+		return n
+	end
+	function plot_density(vector)
+		histogram = fit(Histogram, vector, nbins=25)
+		plot(histogram, xlims=:auto, xticks=:auto, yticks=:auto, aspect_ratio=:auto, ylims=:auto, grid=:auto, size=(400,200))
+	end
+	n_corner = Vector{Int64}()
+	function animate_frame_with_densities(particles, next_time)
+		global current_time
+		dt = next_time - current_time
+		if dt > 0
+			dt = min(0.1, dt)
+			for particle in particles
+				update!(particle, dt)
+			end
+		end
+		append!(n_corner, n_in_corner(particles))
+		current_time = next_time
+		plot1 = plot_particles(particles);
+		plot2 = plot(n_corner, xlims=:auto, xticks=:auto, yticks=:auto, aspect_ratio=:auto, ylims=:auto, grid=:auto, size=(400,200));
+		plot(plot1, plot2, layout = (1, 2), legend = false)
+	end
+	function animate_frame_with_distribution(particles, next_time)
+		global current_time
+		dt = next_time - current_time
+		if dt > 0
+			dt = min(0.1, dt)
+			for particle in particles
+				update!(particle, dt)
+			end
+		end
+		append!(n_corner, n_in_corner(particles))
+		current_time = next_time
+		plot1 = plot_particles(particles);
+		plot2 = plot(n_corner, xlims=:auto, xticks=:auto, yticks=:auto, aspect_ratio=:auto, ylims=:auto, grid=:auto, size=(400,200));
+		plot3 = plot_density(n_corner);
+		l = @layout [
+    		a{0.5w} grid(2,1)
+		]
+		plot(plot1, plot2, plot3, layout = l, legend = false)
+	end
+end
 
 # ╔═╡ 67bc2286-e4be-4dc2-91c5-a67ffcfa67f9
 oneparticle = create_particles(1);
 
 # ╔═╡ 99bf9169-f372-4e48-a01b-3a0a79282a35
-@bind t_one_particle Clock(interval=0.04, fixed=true, start_running=true)
+@bind t_one_particle Clock(interval=0.04, fixed=true)
 
 # ╔═╡ dcb2cedf-aa9c-4b99-8872-8206acdd2836
 begin
@@ -173,39 +226,50 @@ In thermodynamics, we want to describe a millions of air molecules. Now we canno
 particles = create_particles(N);
 
 # ╔═╡ 191ed2d5-fc18-458a-9ca3-9a4b900463bc
-@bind t Clock(interval=0.04, fixed=true, start_running=true)
-
-# ╔═╡ df60b474-2bd5-4326-8ca0-4db9e374d303
-t
+@bind t_100_particles Clock(interval=0.04, fixed=true)
 
 # ╔═╡ 86c8e8fc-000d-487b-826e-62adf9c83d50
 begin
-	animate_next_frame(particles, t/24)
+	animate_next_frame(particles, t_100_particles/24)
 end
 
 # ╔═╡ df316a1b-0f79-44ae-a9db-d41863709530
 md"""
-That's a lot more chaotic! Clearly the computer can still describe the entire system using the location and velocity of each particle, but it's already too much for a human to track. Still, it seems that we can say something about the system as a whole.
+That's a lot more chaotic! Clearly the computer can still handle it, but it's already too much for a human to track all the particles. Describing this entire system in terms of the locations and velocities of individual particles is not very useful for us.
 
-What can we say about all the particles at once? They cannot get outside the box, so we can roughly describe their location ("inside the box"). This also means that on average, they are not moving. So if we add up their velocities, we expect to get something close to $$0$$.
+Instead, we can talk about the system as a whole. There are some rather simple things we can say. There are 100 particles. They are all inside the box. Taking this a bit further, we know their total velocity is close to $$0$$, since they stay inside the box.
 
-That is kind of trivial. Let's take this a bit further. What are the energies of the particles? This is related to the velocity, $$E_p = mv_p^2$$, but since we take the square, the energy is always positive and does not add up to $$0$$.
+It seems we should be able to give more information that a human being can understand. We know there are things like temperature and pressure, that we often deal with in every day life.
 
-But even more interesting is the distribution. Below we show the same simulation, but with an evolving plot on the right showing the distribution of velocities ($$x$$ and $$y$$ directions separately) and energies.
+The total number of particles is not very interesting. It's just 100. But here is the crucial step: We are not actually interested in the total number of particles in the universe. We are interested in the number of particles in our room. Particles enter and leave all the time, so the number is not constant. 
+
+Let's say we live in the lower left corner of the box. We want to know how many particles there are in this region, because this is somehow important to our every day lives. It has to do with pressure or something.
+
+In the simulation we know where all the particles are, so we can count the ones on the lower left side. Let's run the simulationa again, but keeping track of the number of particles in our corner of the universe.
 """
 
-# ╔═╡ ca4eb6e9-3eb1-4bc0-9953-c6aa36d6848e
-begin
-	animation = @animate for step in 1:100
-		for particle in particles
-			update!(particle, 1/24)
-		end
-		plot1 = plot_particles(particles)
-		plot2 = plot([1,2,3,1,2]);
-		plot(plot1, plot2, layout = (1, 2), legend = false)
-	end
-	gif(animation, fps = 24)
-end
+# ╔═╡ 1bbfb8c4-952d-45c2-880a-89b15ae6ede9
+@bind t_many_particles Clock(interval=0.04, fixed=true)
+
+# ╔═╡ ab672333-8022-41e0-9998-0ac7665a91cf
+animate_frame_with_densities(particles, t_many_particles)
+
+# ╔═╡ 63172e9b-68da-4bb5-aed1-830832852e8e
+md"""
+So this is a bit more interesting. The number is close to $$25$$ as you probably would expect, but it varies around that number. How does it vary, exactly?
+
+Below we see plot the distribution of the number of particles: how many times have we seen each number during the simulation.
+"""
+
+# ╔═╡ ea6e6664-b4e4-4917-9a1c-64738be2c7f6
+animate_frame_with_distribution(particles, t_many_particles)
+
+# ╔═╡ 8772600d-f090-43c2-81ba-4d1ad8f43331
+md"""
+If you lef this run for a while, it should roughly add up to a gaussian distribution around $$N/4$$.
+
+There are a couple of other numbers we could have looked at. The total energy inside our corner will also look like a gaussian distribution. 
+"""
 
 # ╔═╡ 78aad25d-d5f1-4dfb-9402-80a33cd91748
 md"""
@@ -225,11 +289,11 @@ In code we can write this a
 # ╔═╡ 00dde5a5-b72c-416f-aa42-a77b162680de
 # Simulation with the energy graphed in the right
 begin
-	energy = 0
+	E = 0
 	for particle in particles
-		energy += 0.5 * 0.001 * sum(particle.v .^ 2)
+		E += 0.5 * 0.001 * sum(particle.v .^ 2)
 	end
-	energy
+	E
 end
 
 # ╔═╡ 7cd75589-baa3-487a-92fb-b9c78e14e25e
@@ -292,10 +356,12 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
 Plots = "~1.27.3"
 PlutoUI = "~0.7.38"
+StatsBase = "~0.33.16"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -1211,7 +1277,6 @@ version = "0.9.1+5"
 # ╠═3f6072c9-335e-4249-904b-8be93cf032b1
 # ╠═7d1c6e10-3148-48d6-9fc8-1dc3e07b2d4b
 # ╠═4405e859-57ad-4594-a921-3ffac965e8a1
-# ╟─ecb26cd2-eeb0-4d37-bc49-7c20ac8119a1
 # ╠═67bc2286-e4be-4dc2-91c5-a67ffcfa67f9
 # ╠═99bf9169-f372-4e48-a01b-3a0a79282a35
 # ╠═dcb2cedf-aa9c-4b99-8872-8206acdd2836
@@ -1219,10 +1284,14 @@ version = "0.9.1+5"
 # ╠═bfb44336-ca3b-4fe0-aacc-cb5d85de9d9a
 # ╠═482c6a29-21ba-4bd3-956d-68afdc77f58b
 # ╠═191ed2d5-fc18-458a-9ca3-9a4b900463bc
-# ╠═df60b474-2bd5-4326-8ca0-4db9e374d303
 # ╠═86c8e8fc-000d-487b-826e-62adf9c83d50
 # ╟─df316a1b-0f79-44ae-a9db-d41863709530
-# ╠═ca4eb6e9-3eb1-4bc0-9953-c6aa36d6848e
+# ╠═1bbfb8c4-952d-45c2-880a-89b15ae6ede9
+# ╟─a1eec5e1-821f-4557-a73d-2ff366eb9e6a
+# ╠═ab672333-8022-41e0-9998-0ac7665a91cf
+# ╟─63172e9b-68da-4bb5-aed1-830832852e8e
+# ╠═ea6e6664-b4e4-4917-9a1c-64738be2c7f6
+# ╠═8772600d-f090-43c2-81ba-4d1ad8f43331
 # ╟─78aad25d-d5f1-4dfb-9402-80a33cd91748
 # ╠═00dde5a5-b72c-416f-aa42-a77b162680de
 # ╟─7cd75589-baa3-487a-92fb-b9c78e14e25e
