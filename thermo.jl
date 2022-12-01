@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.18.4
+# v0.19.16
 
 using Markdown
 using InteractiveUtils
@@ -13,9 +13,6 @@ macro bind(def, element)
         el
     end
 end
-
-# ╔═╡ f401a513-8d1f-40e3-9e17-3610d49af6d5
-using Plots, PlutoUI
 
 # ╔═╡ a0b09f56-af34-11ec-37f5-67140fa6bdd9
 md"""
@@ -50,24 +47,80 @@ So lets get started. First we will build a simulation of a single particle in a 
 """
 
 # ╔═╡ 3f6072c9-335e-4249-904b-8be93cf032b1
-function dxdt(x, v)
-	return v
+function update_location!(particle, dt)
+	particle.x = particle.x + dt*particle.v_x
+	particle.y = particle.y + dt*particle.v_y
 end
 
 # ╔═╡ 7d1c6e10-3148-48d6-9fc8-1dc3e07b2d4b
-function dvdt(x, v)
-	return [0, 0]
+function update_velocity!(particle, dt)
+	# Try adding gravity, for example
 end
 
-# ╔═╡ 4405e859-57ad-4594-a921-3ffac965e8a1
+# ╔═╡ 1a7dc8f0-1e1d-4d60-92a9-8bd28dca1586
+function collide!(particle1, particle2)
+	diff_x = particle1.x - particle2.x
+	diff_y = particle1.y - particle2.y
+	distance_squared = diff_x^2 + diff_y^2
+	size = 6/400
+	min_dist_squared = (2*size)^2
+	increase_by = sqrt(min_dist_squared/distance_squared)
+
+	if distance_squared < min_dist_squared && distance_squared > 1e-8
+		vdiff_x = particle1.v_x - particle2.v_x
+		vdiff_y = particle1.v_y - particle2.v_y
+		exchange_ratio = (vdiff_x*diff_x + vdiff_y*diff_y) / distance_squared
+
+		particle1.v_x = particle1.v_x - exchange_ratio * diff_x
+		particle1.v_y = particle1.v_y - exchange_ratio * diff_y
+		particle2.v_x = particle2.v_x + exchange_ratio * diff_x
+		particle2.v_y = particle2.v_y + exchange_ratio * diff_y
+
+		# Push the particles out of each other
+		increase_by = sqrt(min_dist_squared / distance_squared)
+		center_x = (particle1.x + particle2.x)
+		center_y = (particle1.y + particle2.y)
+		particle1.x = center_x / 2 + increase_by * diff_x / 2
+		particle1.y = center_y / 2 + increase_by * diff_y / 2
+		particle2.x = center_x / 2 - increase_by * diff_x / 2
+		particle2.y = center_y / 2 - increase_by * diff_y / 2
+	end
+end
+
+# ╔═╡ 2d178451-1b30-40ea-82de-77ddddf1fd2e
+function reflect!(particle)
+	# if the particle hits the wall, it gets reflected back with the same speed
+	if particle.x > 1
+		particle.v_x = -particle.v_x
+		particle.x = 1-(particle.x-1)
+	end
+	if particle.y > 1
+		particle.v_y = -particle.v_y
+		particle.y = 1-(particle.y-1)
+	end
+	if particle.x < 0
+		particle.v_x = -particle.v_x
+		particle.x = -particle.x
+	end
+	if particle.y < 0
+		particle.v_y = -particle.v_y
+		particle.y = -particle.y
+	end
+end
+
+# ╔═╡ f401a513-8d1f-40e3-9e17-3610d49af6d5
 begin
+	using Plots, PlutoUI
 	mutable struct Particle
-		x::Vector{Float64}
-		v::Vector{Float64}
+		x::Float64
+		y::Float64
+		v_x::Float64
+		v_y::Float64
 	end
 	function Particle()
-		particle = Particle(rand(2), rand(2))
-		particle.v = particle.v .- 0.5
+		particle = Particle(rand(1)[1], rand(1)[1], rand(1)[1], rand(1)[1])
+		particle.v_x = particle.v_x - 0.5
+		particle.v_y = particle.v_y - 0.5
 		return particle
 	end
 	function create_particles(N::Int64)
@@ -78,37 +131,21 @@ begin
 		return particles
 	end
 	function update!(particle::Particle, timestep::Float64)
-		particle.x = particle.x + timestep .* dxdt(particle.x, particle.v)
-		dv = dvdt(particle.x, particle.v)
-		if dv != 0
-			particle.v = particle.v + timestep .* dv
-		end
-		# if the particle hits the wall, it gets reflected back with the same speed
-		if particle.x[1] > 1
-			particle.v[1] = -particle.v[1]
-			particle.x[1] = 1-(particle.x[1]-1)
-		end
-		if particle.x[2] > 1
-			particle.v[2] = -particle.v[2]
-			particle.x[2] = 1-(particle.x[2]-1)
-		end
-		if particle.x[1] < 0
-			particle.v[1] = -particle.v[1]
-			particle.x[1] = -particle.x[1]
-		end
-		if particle.x[2] < 0
-			particle.v[2] = -particle.v[2]
-			particle.x[2] = -particle.x[2]
-		end
+		update_location!(particle, timestep)
+		update_velocity!(particle, timestep)
+		reflect!(particle)
 	end
 	function plot_particles(particles::Vector{Particle})
-		x_coords = map(p -> p.x[1], particles)
-		y_coords = map(p -> p.x[2], particles)
+		x_coords = map(p -> p.x, particles)
+		y_coords = map(p -> p.y, particles)
 		return plot(
 			x_coords, y_coords, seriestype=:scatter, m=:circle, markersize=6,
 			xlims=[0,1], ylims=[0,1], aspect_ratio=:equal, framestyle=:box,
 			grid=(:none), legend=false, xticks=0, yticks=0, size=(400,400)
 		)
+	end
+    function energy(particle::Particle)
+		return (particle.x^2 + particle.y^2)/2
 	end
 	animation_current_time = 0
 	function animate_next_frame(particles::Vector{Particle}, next_time::Float64)
@@ -119,26 +156,37 @@ begin
 			for particle in particles
 				update!(particle, dt)
 			end
+			for i=1:length(particles)
+				for j=i+1:length(particles)
+					collide!(particles[i], particles[j])
+				end
+			end
 		end
 		animation_current_time = next_time
-		plot_particles(
-			particles
-		)
+		plot_particles(particles)
 	end
-	function animate_with_distribution(particles::Vector{Particle})
-		animation = @animate for step in 1:500
+	function animate_with_energy(particles::Vector{Particle}, next_time::Float64)
+		global animation_current_time
+		dt = next_time - animation_current_time
+		if dt > 0
+			dt = min(0.1, dt)
 			for particle in particles
-				update!(particle, 1/24)
+				update!(particle, dt)
 			end
-			plot1 = plot_particles(particles)
-			plot2 = plot([1,2,3,1,2]);
-			plot(plot1, plot2, layout = (1, 2), legend = false)
+			for i=1:length(particles)
+				for j=i+1:length(particles)
+					collide!(particles[i], particles[j])
+				end
+			end
+
 		end
-		gif(animation, fps = 24)
-	end
-	function simulate_particles(N::Int64)
-		particles = create_particles(N)
-		animate_particles(particles)
+		animation_current_time = next_time
+
+		particle_view = plot_particles(particles)
+		energies = energy.(particles)
+		energy_distribution = histogram(energies, nbins=20, xlim=(0, 1), ylim=(0, length(particles)/4))
+
+		plot!(particle_view, energy_distribution)
 	end
 	nothing
 end
@@ -230,10 +278,10 @@ begin
 	end
 end
 
-# ╔═╡ 67bc2286-e4be-4dc2-91c5-a67ffcfa67f9
+# ╔═╡ c60e35fa-97c7-4671-8ec8-5cda067d0780
 oneparticle = create_particles(1);
 
-# ╔═╡ 99bf9169-f372-4e48-a01b-3a0a79282a35
+# ╔═╡ 10ac120e-0182-49c1-8322-3ff2fb622f34
 @bind t_one_particle Clock(interval=0.04, fixed=true)
 
 # ╔═╡ dcb2cedf-aa9c-4b99-8872-8206acdd2836
@@ -248,40 +296,45 @@ It's natural to describe a single particle using its location and its speed. The
 In thermodynamics, we want to describe a millions of air molecules. Now we cannot really talk about each particle individually. Let's take a look at a simulation with 100 particles (a million would be a bit too much for our computer).
 """
 
-# ╔═╡ 482c6a29-21ba-4bd3-956d-68afdc77f58b
+# ╔═╡ 4afd9e3e-1d9d-4413-8f4a-1ba4541b70d3
 @bind N Slider(1:100, show_value=true, default=100)
 
-# ╔═╡ bfb44336-ca3b-4fe0-aacc-cb5d85de9d9a
+# ╔═╡ 2e9b9131-2f10-470f-824f-ee0b03e2ca5d
 particles = create_particles(N);
 
-# ╔═╡ 191ed2d5-fc18-458a-9ca3-9a4b900463bc
+# ╔═╡ 7bc7a29c-d676-4a64-93e5-2bb23e995f3a
 @bind t_100_particles Clock(interval=0.04, fixed=true)
 
 # ╔═╡ 86c8e8fc-000d-487b-826e-62adf9c83d50
-begin
-	animate_next_frame(particles, t_100_particles/24)
-end
+animate_next_frame(particles, t_100_particles/24)
 
 # ╔═╡ df316a1b-0f79-44ae-a9db-d41863709530
 md"""
 That's a lot more chaotic! Clearly the computer can still handle it, but it's already too much for a human to track all the particles. Describing this entire system in terms of the locations and velocities of individual particles is not very useful for us.
 
-Instead, we can talk about the system as a whole. There are some rather simple things we can say. There are 100 particles. They are all inside the box. Taking this a bit further, we know their total velocity is close to $$0$$, since they stay inside the box.
+We also don't care about what each individual particle is doing. When they all pump into us from random directions, we take the sum of all those little pumps and call that pressure or temperature. And when they move in the same direction and push us, we call that wind.
 
-It seems we should be able to give more information that a human being can understand. We know there are things like temperature and pressure, that we often deal with in every day life.
+So let's get into a bit more detail. We would like to know how the movements of each of these little particles translates into the what we think of as temperature, pressure and so on.
 
-The total number of particles is not very interesting. It's just 100. But here is the crucial step: We are not actually interested in the total number of particles in the universe. We are interested in the number of particles in our room. Particles enter and leave all the time, so the number is not constant.
-
-Let's say we live in the lower left corner of the box. We want to know how many particles there are in this region, because this is somehow important to our every day lives. It has to do with pressure or something.
-
-In the simulation we know where all the particles are, so we can count the ones on the lower left side. Let's run the simulationa again, but keeping track of the number of particles in our corner of the universe.
+So what can we say about the whole system? You already know the number of particles, that does not change. One thing that does change is how energy is distributed between the particles. Every time they collide some energy is transferred. Let's see how this works.
 """
 
+# ╔═╡ 05ee66ba-4f20-41cf-bd37-2dbba4bc40eb
+@bind N_energy Slider(1:1000, show_value=true, default=100)
+
+# ╔═╡ 882e3118-c321-42b6-b96a-7663a3342739
+particles_energy = create_particles(N_energy);
+
+# ╔═╡ f86d5119-378b-4649-a36f-42762ff9cad3
+@bind t_energy Clock(interval=0.04, fixed=true)
+
 # ╔═╡ 1bbfb8c4-952d-45c2-880a-89b15ae6ede9
-@bind t_many_particles Clock(interval=0.04, fixed=true)
+animate_with_energy(particles_energy, t_energy/24)
 
 # ╔═╡ ab672333-8022-41e0-9998-0ac7665a91cf
+#=╠═╡
 animate_frame_with_densities(particles, t_many_particles)
+  ╠═╡ =#
 
 # ╔═╡ 63172e9b-68da-4bb5-aed1-830832852e8e
 md"""
@@ -291,7 +344,9 @@ Below we see plot the distribution of the number of particles: how many times ha
 """
 
 # ╔═╡ ea6e6664-b4e4-4917-9a1c-64738be2c7f6
+#=╠═╡
 animate_frame_with_distribution(particles, t_many_particles)
+  ╠═╡ =#
 
 # ╔═╡ 8772600d-f090-43c2-81ba-4d1ad8f43331
 md"""
@@ -303,7 +358,9 @@ The energy of a single particle is $$\frac12 m v^2$$, and the total energy in ou
 """
 
 # ╔═╡ bdfec8b5-297e-4996-b878-dcd6064598d7
+#=╠═╡
 animate_frame_with_energy_distribution(particles, t_many_particles)
+  ╠═╡ =#
 
 # ╔═╡ c1b3752d-3875-48a4-bd79-971bab44dca1
 md"""
@@ -314,61 +371,17 @@ In thermodynamics we are interested in the statistical expectation value of each
 There is another way to increase energy, though. We can kick the particles around, increasing their individual energies. This is what a heater does, so this should have something to do with temperature.
 """
 
-# ╔═╡ 78aad25d-d5f1-4dfb-9402-80a33cd91748
-md"""
-### Energy
-
-We could calculate the average location, but since they are all inside the box, this does not give us a lot of information. Similarly, the velocities will add up to zero, since the box does not move. The total energy is a bit more meaningfull. Fast moving particles have high energy, and the more and faster particles, the higher total energy.
-
-The energy of a particle is $$\frac 12 mv^2$$, where m is the mass of a particle. For our purposes, let's say each particle weights $$m=0.001$$g.
-
-The total energy is
-
-$$E = \sum_p \frac 12 mv_p^2.$$
-
-In code we can write this a
-"""
-
-# ╔═╡ 00dde5a5-b72c-416f-aa42-a77b162680de
-# Simulation with the energy graphed in the right
-begin
-	E = 0
-	for particle in particles
-		E += 0.5 * 0.001 * sum(particle.v .^ 2)
-	end
-	E
-end
-
-# ╔═╡ 7cd75589-baa3-487a-92fb-b9c78e14e25e
-md"""
-So the energy is constant during the simulation. Since energy is conserved, this is what we expected. But does this mean that energy is also a meaningless quantity?
-
-In most real systems energy can change when particles bump into the boundaries of the box, when they leave through a small crack or when someone heats up the box, kicking them around. We can make this happen in our simulation as well. If we leave the box open, particles will leave and energy will decrease.
-"""
-
-# ╔═╡ 7a0ff26a-6db4-443e-b93e-5d62f79d8424
-# Simulation with a hole in the box
-
 # ╔═╡ 7b202300-91ff-45e4-b933-75c6083b256c
 md"""
 ### Pressure
 
 """
 
-# ╔═╡ 1e16d2ca-abbb-4214-a82a-773812bde621
-md"""
-### Particle Number
-
-Well, clearly the number of particles is not constant anymore, either. This one is especially hard to measure in practice, we cannot actually count all the air molecules in the room, but we can count them in our simulation.
-"""
-
-# ╔═╡ 93e8bc54-27e4-4c24-83fb-19d0a2b320b1
-# Before going to entropy, introduce heater as well. Particles moving in and out, what changes?
-# Can we scale up and look at some statistics?
-
 # ╔═╡ ccee3ca7-54a7-406c-be5d-0f604f6bee11
 md"""
 ## Entropy
+
+This should be demonstrated, not stated.
 
 Now we are getting more complicated. Entropy is related to the particle number, in a way, but measuring it does not require actually counting all the particles. We will come back to measuring it once we have defined temperature, but for now let's just define it for our particles-in-a-box simulation.
 
@@ -391,6 +404,9 @@ $$S=\log (V\times V_P)^N = N \; \log(V\times V_P)$$
 So in the end the entropy, in this case at least, is the number of particles multiplied by a factor. In our simulation, it changes only when particles leave the box, but notice that it would also change if we made the box bigger or smaller.
 """
 
+# ╔═╡ 3ce6205b-c27c-4aae-ab9e-99d8eb69e11a
+
+
 # ╔═╡ 5f3c3d8a-fd2b-4be3-809e-1bf5398a88e2
 
 
@@ -402,8 +418,8 @@ PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
-Plots = "~1.27.3"
-PlutoUI = "~0.7.38"
+Plots = "~1.36.6"
+PlutoUI = "~0.7.49"
 StatsBase = "~0.33.16"
 """
 
@@ -420,12 +436,6 @@ git-tree-sha1 = "8eaf9f1b4921132a4cff3f36a1d9ba923b14a481"
 uuid = "6e696c72-6542-2067-7265-42206c756150"
 version = "1.1.4"
 
-[[deps.Adapt]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "af92965fb30777147966f58acb05da51c5616b5f"
-uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-version = "3.3.3"
-
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
 
@@ -434,6 +444,11 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
+
+[[deps.BitFlags]]
+git-tree-sha1 = "43b1a4a8f797c1cddadf60499a8a077d4af2cd2d"
+uuid = "d1d4a3ce-64b1-5f1a-9ba4-7e7e69966f35"
+version = "0.1.7"
 
 [[deps.Bzip2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -459,17 +474,29 @@ git-tree-sha1 = "bf98fa45a0a4cee295de98d4c1462be26345b9a1"
 uuid = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
 version = "0.1.2"
 
+[[deps.CodecZlib]]
+deps = ["TranscodingStreams", "Zlib_jll"]
+git-tree-sha1 = "ded953804d019afa9a3f98981d99b33e3db7b6da"
+uuid = "944b1d66-785c-5afd-91f1-9de20f533193"
+version = "0.7.0"
+
 [[deps.ColorSchemes]]
-deps = ["ColorTypes", "Colors", "FixedPointNumbers", "Random"]
-git-tree-sha1 = "12fc73e5e0af68ad3137b886e3f7c1eacfca2640"
+deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "Random", "SnoopPrecompile"]
+git-tree-sha1 = "aa3edc8f8dea6cbfa176ee12f7c2fc82f0608ed3"
 uuid = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
-version = "3.17.1"
+version = "3.20.0"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
-git-tree-sha1 = "024fe24d83e4a5bf5fc80501a314ce0d1aa35597"
+git-tree-sha1 = "eb7f0f8307f71fac7c606984ea5fb2817275d6e4"
 uuid = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
-version = "0.11.0"
+version = "0.11.4"
+
+[[deps.ColorVectorSpace]]
+deps = ["ColorTypes", "FixedPointNumbers", "LinearAlgebra", "SpecialFunctions", "Statistics", "TensorCore"]
+git-tree-sha1 = "d08c20eef1f2cbc6e60fd3612ac4340b89fea322"
+uuid = "c3611d14-8923-5661-9e6a-0046d554d3a4"
+version = "0.9.9"
 
 [[deps.Colors]]
 deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
@@ -488,10 +515,9 @@ deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 
 [[deps.Contour]]
-deps = ["StaticArrays"]
-git-tree-sha1 = "9f02045d934dc030edad45944ea80dbd1f0ebea7"
+git-tree-sha1 = "d05d9e7b7aedff4e5b51a029dced05cfb6125781"
 uuid = "d38c429a-6771-53c6-b99e-75d170b6e991"
-version = "0.5.7"
+version = "0.6.2"
 
 [[deps.DataAPI]]
 git-tree-sha1 = "cc70b17275652eb47bc9e5f81635981f13cea5c8"
@@ -503,11 +529,6 @@ deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
 git-tree-sha1 = "3daef5523dd2e769dad2365274f760ff5f282c7d"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 version = "0.18.11"
-
-[[deps.DataValueInterfaces]]
-git-tree-sha1 = "bfc1187b79289637fa0ef6d4436ebdfe6905cbd6"
-uuid = "e2d170a0-9d28-54be-80f0-106bbe20a464"
-version = "1.0.0"
 
 [[deps.Dates]]
 deps = ["Printf"]
@@ -531,12 +552,6 @@ version = "0.8.6"
 deps = ["ArgTools", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 
-[[deps.EarCut_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "3f3a2501fa7236e9b911e0f7a588c657e822bb6d"
-uuid = "5ae413db-bbd1-5e63-b57d-d24a61df00f5"
-version = "2.2.3+0"
-
 [[deps.Expat_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "bad72f730e9e91c08d9427d5e8db95478a3c323d"
@@ -550,10 +565,10 @@ uuid = "c87230d0-a227-11e9-1b43-d7ebe4e7570a"
 version = "0.4.1"
 
 [[deps.FFMPEG_jll]]
-deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers", "LAME_jll", "Libdl", "Ogg_jll", "OpenSSL_jll", "Opus_jll", "Pkg", "Zlib_jll", "libass_jll", "libfdk_aac_jll", "libvorbis_jll", "x264_jll", "x265_jll"]
-git-tree-sha1 = "d8a578692e3077ac998b50c0217dfd67f21d1e5f"
+deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers", "LAME_jll", "Libdl", "Ogg_jll", "OpenSSL_jll", "Opus_jll", "PCRE2_jll", "Pkg", "Zlib_jll", "libaom_jll", "libass_jll", "libfdk_aac_jll", "libvorbis_jll", "x264_jll", "x265_jll"]
+git-tree-sha1 = "74faea50c1d007c85837327f6775bea60b5492dd"
 uuid = "b22a6f82-2f65-5046-a5b2-351ab43fb4e5"
-version = "4.4.0+0"
+version = "4.4.2+2"
 
 [[deps.FixedPointNumbers]]
 deps = ["Statistics"]
@@ -587,27 +602,21 @@ version = "1.0.10+0"
 
 [[deps.GLFW_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libglvnd_jll", "Pkg", "Xorg_libXcursor_jll", "Xorg_libXi_jll", "Xorg_libXinerama_jll", "Xorg_libXrandr_jll"]
-git-tree-sha1 = "51d2dfe8e590fbd74e7a842cf6d13d8a2f45dc01"
+git-tree-sha1 = "d972031d28c8c8d9d7b41a536ad7bb0c2579caca"
 uuid = "0656b61e-2033-5cc2-a64a-77c0f6c09b89"
-version = "3.3.6+0"
+version = "3.3.8+0"
 
 [[deps.GR]]
-deps = ["Base64", "DelimitedFiles", "GR_jll", "HTTP", "JSON", "Libdl", "LinearAlgebra", "Pkg", "Printf", "Random", "RelocatableFolders", "Serialization", "Sockets", "Test", "UUIDs"]
-git-tree-sha1 = "df5f5b0450c489fe6ed59a6c0a9804159c22684d"
+deps = ["Artifacts", "Base64", "DelimitedFiles", "Downloads", "GR_jll", "HTTP", "JSON", "Libdl", "LinearAlgebra", "Pkg", "Preferences", "Printf", "Random", "Serialization", "Sockets", "TOML", "Tar", "Test", "UUIDs", "p7zip_jll"]
+git-tree-sha1 = "051072ff2accc6e0e87b708ddee39b18aa04a0bc"
 uuid = "28b8d3ca-fb5f-59d9-8090-bfdbd6d07a71"
-version = "0.64.1"
+version = "0.71.1"
 
 [[deps.GR_jll]]
 deps = ["Artifacts", "Bzip2_jll", "Cairo_jll", "FFMPEG_jll", "Fontconfig_jll", "GLFW_jll", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Libtiff_jll", "Pixman_jll", "Pkg", "Qt5Base_jll", "Zlib_jll", "libpng_jll"]
-git-tree-sha1 = "83578392343a7885147726712523c39edc714956"
+git-tree-sha1 = "501a4bf76fd679e7fcd678725d5072177392e756"
 uuid = "d2c73de3-f751-5644-a686-071e5b155ba9"
-version = "0.64.1+0"
-
-[[deps.GeometryBasics]]
-deps = ["EarCut_jll", "IterTools", "LinearAlgebra", "StaticArrays", "StructArrays", "Tables"]
-git-tree-sha1 = "83ea630384a13fc4f002b77690bc0afeb4255ac9"
-uuid = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
-version = "0.4.2"
+version = "0.71.1+0"
 
 [[deps.Gettext_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Libiconv_jll", "Pkg", "XML2_jll"]
@@ -616,10 +625,10 @@ uuid = "78b55507-aeef-58d4-861c-77aaff3498b1"
 version = "0.21.0+0"
 
 [[deps.Glib_jll]]
-deps = ["Artifacts", "Gettext_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Libiconv_jll", "Libmount_jll", "PCRE_jll", "Pkg", "Zlib_jll"]
-git-tree-sha1 = "a32d672ac2c967f3deb8a81d828afc739c838a06"
+deps = ["Artifacts", "Gettext_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Libiconv_jll", "Libmount_jll", "PCRE2_jll", "Pkg", "Zlib_jll"]
+git-tree-sha1 = "fb83fbe02fe57f2c068013aa94bcdf6760d3a7a7"
 uuid = "7746bdde-850d-59dc-9ae8-88ece973131d"
-version = "2.68.3+2"
+version = "2.74.0+1"
 
 [[deps.Graphite2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -633,10 +642,10 @@ uuid = "42e2da0e-8278-4e71-bc24-59509adca0fe"
 version = "1.0.2"
 
 [[deps.HTTP]]
-deps = ["Base64", "Dates", "IniFile", "Logging", "MbedTLS", "NetworkOptions", "Sockets", "URIs"]
-git-tree-sha1 = "0fa77022fe4b511826b39c894c90daf5fce3334a"
+deps = ["Base64", "CodecZlib", "Dates", "IniFile", "Logging", "LoggingExtras", "MbedTLS", "NetworkOptions", "OpenSSL", "Random", "SimpleBufferStream", "Sockets", "URIs", "UUIDs"]
+git-tree-sha1 = "e1acc37ed078d99a714ed8376446f92a5535ca65"
 uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
-version = "0.9.17"
+version = "1.5.5"
 
 [[deps.HarfBuzz_jll]]
 deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "Graphite2_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Pkg"]
@@ -651,9 +660,10 @@ uuid = "47d2ed2b-36de-50cf-bf87-49c2cf4b8b91"
 version = "0.0.4"
 
 [[deps.HypertextLiteral]]
-git-tree-sha1 = "2b078b5a615c6c0396c77810d92ee8c6f470d238"
+deps = ["Tricks"]
+git-tree-sha1 = "c47c5fa4c5308f27ccaac35504858d8914e102f9"
 uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
-version = "0.9.3"
+version = "0.9.4"
 
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
@@ -681,15 +691,11 @@ git-tree-sha1 = "7fd44fd4ff43fc60815f8e764c0f352b83c49151"
 uuid = "92d709cd-6900-40b7-9082-c6be49f344b6"
 version = "0.1.1"
 
-[[deps.IterTools]]
-git-tree-sha1 = "fa6287a4469f5e048d763df38279ee729fbd44e5"
-uuid = "c8e1da08-722c-5040-9ed9-7db0dc04731e"
-version = "1.4.0"
-
-[[deps.IteratorInterfaceExtensions]]
-git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
-uuid = "82899510-4779-5014-852e-03e436cf321d"
-version = "1.0.0"
+[[deps.JLFzf]]
+deps = ["Pipe", "REPL", "Random", "fzf_jll"]
+git-tree-sha1 = "f377670cda23b6b7c1c0b3893e37451c5c1a2185"
+uuid = "1019f520-868f-41f5-a6de-eb00f4b6a39c"
+version = "0.1.5"
 
 [[deps.JLLWrappers]]
 deps = ["Preferences"]
@@ -733,10 +739,10 @@ uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 version = "1.3.0"
 
 [[deps.Latexify]]
-deps = ["Formatting", "InteractiveUtils", "LaTeXStrings", "MacroTools", "Markdown", "Printf", "Requires"]
-git-tree-sha1 = "6f14549f7760d84b2db7a9b10b88cd3cc3025730"
+deps = ["Formatting", "InteractiveUtils", "LaTeXStrings", "MacroTools", "Markdown", "OrderedCollections", "Printf", "Requires"]
+git-tree-sha1 = "ab9aa169d2160129beb241cb2750ca499b4e90e9"
 uuid = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
-version = "0.15.14"
+version = "0.15.17"
 
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
@@ -771,9 +777,9 @@ version = "1.8.7+0"
 
 [[deps.Libglvnd_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "Xorg_libX11_jll", "Xorg_libXext_jll"]
-git-tree-sha1 = "7739f837d6447403596a75d19ed01fd08d6f56bf"
+git-tree-sha1 = "6f73d1dd803986947b2c750138528a999a6c7733"
 uuid = "7e76a0d4-f3c7-5321-8279-8d96eeed0f29"
-version = "1.3.0+3"
+version = "1.6.0+0"
 
 [[deps.Libgpg_error_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -795,9 +801,9 @@ version = "2.35.0+0"
 
 [[deps.Libtiff_jll]]
 deps = ["Artifacts", "JLLWrappers", "JpegTurbo_jll", "LERC_jll", "Libdl", "Pkg", "Zlib_jll", "Zstd_jll"]
-git-tree-sha1 = "c9551dd26e31ab17b86cbd00c2ede019c08758eb"
+git-tree-sha1 = "3eb79b0ca5764d4799c06699573fd8f533259713"
 uuid = "89763e89-9b03-5906-acba-b20f662cd828"
-version = "4.3.0+1"
+version = "4.4.0+0"
 
 [[deps.Libuuid_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -818,30 +824,41 @@ version = "0.3.10"
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
+[[deps.LoggingExtras]]
+deps = ["Dates", "Logging"]
+git-tree-sha1 = "cedb76b37bc5a6c702ade66be44f831fa23c681e"
+uuid = "e6f89c97-d47a-5376-807f-9c37f3926c36"
+version = "1.0.0"
+
+[[deps.MIMEs]]
+git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
+uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
+version = "0.1.4"
+
 [[deps.MacroTools]]
 deps = ["Markdown", "Random"]
-git-tree-sha1 = "3d3e902b31198a27340d0bf00d6ac452866021cf"
+git-tree-sha1 = "42324d08725e200c23d4dfb549e0d5d89dede2d2"
 uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
-version = "0.5.9"
+version = "0.5.10"
 
 [[deps.Markdown]]
 deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[deps.MbedTLS]]
-deps = ["Dates", "MbedTLS_jll", "Random", "Sockets"]
-git-tree-sha1 = "1c38e51c3d08ef2278062ebceade0e46cefc96fe"
+deps = ["Dates", "MbedTLS_jll", "MozillaCACerts_jll", "Random", "Sockets"]
+git-tree-sha1 = "03a9b9718f5682ecb107ac9f7308991db4ce395b"
 uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
-version = "1.0.3"
+version = "1.1.7"
 
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
 
 [[deps.Measures]]
-git-tree-sha1 = "e498ddeee6f9fdb4551ce855a46f54dbd900245f"
+git-tree-sha1 = "c13304c81eec1ed3af7fc20e75fb6b26092a1102"
 uuid = "442fdcdd-2543-5da2-b0f3-8c86c306513e"
-version = "0.3.1"
+version = "0.3.2"
 
 [[deps.Missings]]
 deps = ["DataAPI"]
@@ -856,9 +873,10 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
 
 [[deps.NaNMath]]
-git-tree-sha1 = "b086b7ea07f8e38cf122f5016af580881ac914fe"
+deps = ["OpenLibm_jll"]
+git-tree-sha1 = "a7c3d1da1189a1c2fe843a3bfa04d18d20eb3211"
 uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
-version = "0.3.7"
+version = "1.0.1"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
@@ -873,11 +891,27 @@ version = "1.3.5+1"
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
 
+[[deps.OpenLibm_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
+
+[[deps.OpenSSL]]
+deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "OpenSSL_jll", "Sockets"]
+git-tree-sha1 = "df6830e37943c7aaa10023471ca47fb3065cc3c4"
+uuid = "4d8831e6-92b7-49fb-bdf8-b643e874388c"
+version = "1.3.2"
+
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "ab05aa4cc89736e95915b01e7279e61b1bfe33b8"
+git-tree-sha1 = "f6e9dba33f9f2c44e08a020b0caf6903be540004"
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
-version = "1.1.14+0"
+version = "1.1.19+0"
+
+[[deps.OpenSpecFun_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "13652491f6856acfd2db29360e1bbcd4565d04f1"
+uuid = "efe28fd5-8261-553b-a9e1-b2916fc3738e"
+version = "0.5.5+0"
 
 [[deps.Opus_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -890,17 +924,20 @@ git-tree-sha1 = "85f8e6578bf1f9ee0d11e7bb1b1456435479d47c"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.4.1"
 
-[[deps.PCRE_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "b2a7af664e098055a7529ad1a900ded962bca488"
-uuid = "2f80f16e-611a-54ab-bc61-aa92de5b98fc"
-version = "8.44.0+0"
+[[deps.PCRE2_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
 
 [[deps.Parsers]]
-deps = ["Dates"]
-git-tree-sha1 = "85b5da0fa43588c75bb1ff986493443f821c70b7"
+deps = ["Dates", "SnoopPrecompile"]
+git-tree-sha1 = "b64719e8b4504983c7fca6cc9db3ebc8acc2a4d6"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.2.3"
+version = "2.5.1"
+
+[[deps.Pipe]]
+git-tree-sha1 = "6842804e7867b115ca9de748a0cf6b364523c16d"
+uuid = "b98c9c47-44ae-5843-9183-064241ee97a0"
+version = "1.3.0"
 
 [[deps.Pixman_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -913,34 +950,34 @@ deps = ["Artifacts", "Dates", "Downloads", "LibGit2", "Libdl", "Logging", "Markd
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[deps.PlotThemes]]
-deps = ["PlotUtils", "Requires", "Statistics"]
-git-tree-sha1 = "a3a964ce9dc7898193536002a6dd892b1b5a6f1d"
+deps = ["PlotUtils", "Statistics"]
+git-tree-sha1 = "1f03a2d339f42dca4a4da149c7e15e9b896ad899"
 uuid = "ccf2f8ad-2431-5c83-bf29-c5338b663b6a"
-version = "2.0.1"
+version = "3.1.0"
 
 [[deps.PlotUtils]]
-deps = ["ColorSchemes", "Colors", "Dates", "Printf", "Random", "Reexport", "Statistics"]
-git-tree-sha1 = "bb16469fd5224100e422f0b027d26c5a25de1200"
+deps = ["ColorSchemes", "Colors", "Dates", "Printf", "Random", "Reexport", "SnoopPrecompile", "Statistics"]
+git-tree-sha1 = "21303256d239f6b484977314674aef4bb1fe4420"
 uuid = "995b91a9-d308-5afd-9ec6-746e21dbc043"
-version = "1.2.0"
+version = "1.3.1"
 
 [[deps.Plots]]
-deps = ["Base64", "Contour", "Dates", "Downloads", "FFMPEG", "FixedPointNumbers", "GR", "GeometryBasics", "JSON", "Latexify", "LinearAlgebra", "Measures", "NaNMath", "Pkg", "PlotThemes", "PlotUtils", "Printf", "REPL", "Random", "RecipesBase", "RecipesPipeline", "Reexport", "Requires", "Scratch", "Showoff", "SparseArrays", "Statistics", "StatsBase", "UUIDs", "UnicodeFun", "Unzip"]
-git-tree-sha1 = "5f6e1309595e95db24342e56cd4dabd2159e0b79"
+deps = ["Base64", "Contour", "Dates", "Downloads", "FFMPEG", "FixedPointNumbers", "GR", "JLFzf", "JSON", "LaTeXStrings", "Latexify", "LinearAlgebra", "Measures", "NaNMath", "Pkg", "PlotThemes", "PlotUtils", "Printf", "REPL", "Random", "RecipesBase", "RecipesPipeline", "Reexport", "RelocatableFolders", "Requires", "Scratch", "Showoff", "SnoopPrecompile", "SparseArrays", "Statistics", "StatsBase", "UUIDs", "UnicodeFun", "Unzip"]
+git-tree-sha1 = "6a9521b955b816aa500462951aa67f3e4467248a"
 uuid = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
-version = "1.27.3"
+version = "1.36.6"
 
 [[deps.PlutoUI]]
-deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "Markdown", "Random", "Reexport", "UUIDs"]
-git-tree-sha1 = "670e559e5c8e191ded66fa9ea89c97f10376bb4c"
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "eadad7b14cf046de6eb41f13c9275e5aa2711ab6"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.38"
+version = "0.7.49"
 
 [[deps.Preferences]]
 deps = ["TOML"]
-git-tree-sha1 = "d3538e7f8a790dc8903519090857ef8e1283eecd"
+git-tree-sha1 = "47e5f437cc0e7ef2ce8406ce1e7e24d44915f88d"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.2.5"
+version = "1.3.0"
 
 [[deps.Printf]]
 deps = ["Unicode"]
@@ -948,9 +985,9 @@ uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [[deps.Qt5Base_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Fontconfig_jll", "Glib_jll", "JLLWrappers", "Libdl", "Libglvnd_jll", "OpenSSL_jll", "Pkg", "Xorg_libXext_jll", "Xorg_libxcb_jll", "Xorg_xcb_util_image_jll", "Xorg_xcb_util_keysyms_jll", "Xorg_xcb_util_renderutil_jll", "Xorg_xcb_util_wm_jll", "Zlib_jll", "xkbcommon_jll"]
-git-tree-sha1 = "ad368663a5e20dbb8d6dc2fddeefe4dae0781ae8"
+git-tree-sha1 = "0c03844e2231e12fda4d0086fd7cbe4098ee8dc5"
 uuid = "ea2cea3b-5b76-57ae-a6ef-0a8af62496e1"
-version = "5.15.3+0"
+version = "5.15.3+2"
 
 [[deps.REPL]]
 deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
@@ -961,15 +998,16 @@ deps = ["SHA", "Serialization"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [[deps.RecipesBase]]
-git-tree-sha1 = "6bf3f380ff52ce0832ddd3a2a7b9538ed1bcca7d"
+deps = ["SnoopPrecompile"]
+git-tree-sha1 = "18c35ed630d7229c5584b945641a73ca83fb5213"
 uuid = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
-version = "1.2.1"
+version = "1.3.2"
 
 [[deps.RecipesPipeline]]
-deps = ["Dates", "NaNMath", "PlotUtils", "RecipesBase"]
-git-tree-sha1 = "dc1e451e15d90347a7decc4221842a022b011714"
+deps = ["Dates", "NaNMath", "PlotUtils", "RecipesBase", "SnoopPrecompile"]
+git-tree-sha1 = "e974477be88cb5e3040009f3767611bc6357846f"
 uuid = "01d81517-befc-4cb6-b9ec-a95719d0359c"
-version = "0.5.2"
+version = "0.6.11"
 
 [[deps.Reexport]]
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
@@ -978,9 +1016,9 @@ version = "1.2.2"
 
 [[deps.RelocatableFolders]]
 deps = ["SHA", "Scratch"]
-git-tree-sha1 = "cdbd3b1338c72ce29d9584fdbe9e9b70eeb5adca"
+git-tree-sha1 = "90bc7a7c96410424509e4263e277e43250c05691"
 uuid = "05181044-ff0b-4ac5-8273-598c1e38db00"
-version = "0.1.3"
+version = "1.0.0"
 
 [[deps.Requires]]
 deps = ["UUIDs"]
@@ -993,9 +1031,9 @@ uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 
 [[deps.Scratch]]
 deps = ["Dates"]
-git-tree-sha1 = "0b4b7f1393cff97c33891da2a0bf69c6ed241fda"
+git-tree-sha1 = "f94f779c94e58bf9ea243e77a37e16d9de9126bd"
 uuid = "6c6a2e73-6563-6170-7368-637461726353"
-version = "1.1.0"
+version = "1.1.1"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
@@ -1010,6 +1048,16 @@ git-tree-sha1 = "91eddf657aca81df9ae6ceb20b959ae5653ad1de"
 uuid = "992d4aef-0814-514b-bc4d-f2e9a6c4116f"
 version = "1.0.3"
 
+[[deps.SimpleBufferStream]]
+git-tree-sha1 = "874e8867b33a00e784c8a7e4b60afe9e037b74e1"
+uuid = "777ac1f9-54b0-4bf8-805c-2214025038e7"
+version = "1.1.0"
+
+[[deps.SnoopPrecompile]]
+git-tree-sha1 = "f604441450a3c0569830946e5b33b78c928e1a85"
+uuid = "66db9d55-30c0-4569-8b51-7e840670fc0c"
+version = "1.0.1"
+
 [[deps.Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
 
@@ -1023,11 +1071,11 @@ version = "1.0.1"
 deps = ["LinearAlgebra", "Random"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
-[[deps.StaticArrays]]
-deps = ["LinearAlgebra", "Random", "Statistics"]
-git-tree-sha1 = "4f6ec5d99a28e1a749559ef7dd518663c5eca3d5"
-uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.4.3"
+[[deps.SpecialFunctions]]
+deps = ["ChainRulesCore", "IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
+git-tree-sha1 = "d75bda01f8c31ebb72df80a46c88b25d1c79c56d"
+uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
+version = "2.1.7"
 
 [[deps.Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
@@ -1045,40 +1093,39 @@ git-tree-sha1 = "8977b17906b0a1cc74ab2e3a05faa16cf08a8291"
 uuid = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 version = "0.33.16"
 
-[[deps.StructArrays]]
-deps = ["Adapt", "DataAPI", "StaticArrays", "Tables"]
-git-tree-sha1 = "57617b34fa34f91d536eb265df67c2d4519b8b98"
-uuid = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
-version = "0.6.5"
-
 [[deps.TOML]]
 deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
-
-[[deps.TableTraits]]
-deps = ["IteratorInterfaceExtensions"]
-git-tree-sha1 = "c06b2f539df1c6efa794486abfb6ed2022561a39"
-uuid = "3783bdb8-4a98-5b6b-af9a-565f29a5fe9c"
-version = "1.0.1"
-
-[[deps.Tables]]
-deps = ["DataAPI", "DataValueInterfaces", "IteratorInterfaceExtensions", "LinearAlgebra", "OrderedCollections", "TableTraits", "Test"]
-git-tree-sha1 = "5ce79ce186cc678bbb5c5681ca3379d1ddae11a1"
-uuid = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
-version = "1.7.0"
 
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 
+[[deps.TensorCore]]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "1feb45f88d133a655e001435632f019a9a1bcdb6"
+uuid = "62fd8b95-f654-4bbd-a8a5-9c27f68ccd50"
+version = "0.1.1"
+
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
+[[deps.TranscodingStreams]]
+deps = ["Random", "Test"]
+git-tree-sha1 = "8a75929dcd3c38611db2f8d08546decb514fcadf"
+uuid = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
+version = "0.9.9"
+
+[[deps.Tricks]]
+git-tree-sha1 = "6bac775f2d42a611cdfcd1fb217ee719630c4175"
+uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
+version = "0.1.6"
+
 [[deps.URIs]]
-git-tree-sha1 = "97bbe755a53fe859669cd907f2d96aee8d2c1355"
+git-tree-sha1 = "ac00576f90d8a259f2c9d823e91d1de3fd44d348"
 uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
-version = "1.3.0"
+version = "1.4.1"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
@@ -1094,9 +1141,9 @@ uuid = "1cfade01-22cf-5700-b092-accc4b62d6e1"
 version = "0.4.1"
 
 [[deps.Unzip]]
-git-tree-sha1 = "34db80951901073501137bdbc3d5a8e7bbd06670"
+git-tree-sha1 = "ca0969166a028236229f63514992fc073799bb78"
 uuid = "41fe7b60-77ed-43a1-b4f0-825fd5a5650d"
-version = "0.1.2"
+version = "0.2.0"
 
 [[deps.Wayland_jll]]
 deps = ["Artifacts", "Expat_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Pkg", "XML2_jll"]
@@ -1112,9 +1159,9 @@ version = "1.25.0+0"
 
 [[deps.XML2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libiconv_jll", "Pkg", "Zlib_jll"]
-git-tree-sha1 = "1acf5bdf07aa0907e0a37d3718bb88d4b687b74a"
+git-tree-sha1 = "58443b63fb7e465a8a7210828c91c08b92132dff"
 uuid = "02c8fc9c-b97f-50b9-bbe4-9be30ff0a78a"
-version = "2.9.12+0"
+version = "2.9.14+0"
 
 [[deps.XSLT_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libgcrypt_jll", "Libgpg_error_jll", "Libiconv_jll", "Pkg", "XML2_jll", "Zlib_jll"]
@@ -1258,6 +1305,18 @@ git-tree-sha1 = "e45044cd873ded54b6a5bac0eb5c971392cf1927"
 uuid = "3161d3a3-bdf6-5164-811a-617609db77b4"
 version = "1.5.2+0"
 
+[[deps.fzf_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "868e669ccb12ba16eaf50cb2957ee2ff61261c56"
+uuid = "214eeab7-80f7-51ab-84ad-2988db7cef09"
+version = "0.29.0+0"
+
+[[deps.libaom_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "3a2ea60308f0996d26f1e5354e10c24e9ef905d4"
+uuid = "a4ae2306-e953-59d6-aa16-d00cac43593b"
+version = "3.4.0+0"
+
 [[deps.libass_jll]]
 deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "HarfBuzz_jll", "JLLWrappers", "Libdl", "Pkg", "Zlib_jll"]
 git-tree-sha1 = "5982a94fcba20f02f42ace44b9894ee2b140fe47"
@@ -1308,43 +1367,42 @@ version = "3.5.0+0"
 
 [[deps.xkbcommon_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "Wayland_jll", "Wayland_protocols_jll", "Xorg_libxcb_jll", "Xorg_xkeyboard_config_jll"]
-git-tree-sha1 = "ece2350174195bb31de1a63bea3a41ae1aa593b6"
+git-tree-sha1 = "9ebfc140cc56e8c2156a15ceac2f0302e327ac0a"
 uuid = "d8fb68d0-12a3-5cfd-a85a-d49703b185fd"
-version = "0.9.1+5"
+version = "1.4.1+0"
 """
 
 # ╔═╡ Cell order:
 # ╟─a0b09f56-af34-11ec-37f5-67140fa6bdd9
 # ╟─8d131083-957c-473c-8180-34d24c34e258
-# ╟─f401a513-8d1f-40e3-9e17-3610d49af6d5
+# ╠═f401a513-8d1f-40e3-9e17-3610d49af6d5
 # ╠═3f6072c9-335e-4249-904b-8be93cf032b1
 # ╠═7d1c6e10-3148-48d6-9fc8-1dc3e07b2d4b
-# ╠═4405e859-57ad-4594-a921-3ffac965e8a1
-# ╠═67bc2286-e4be-4dc2-91c5-a67ffcfa67f9
-# ╠═99bf9169-f372-4e48-a01b-3a0a79282a35
-# ╠═dcb2cedf-aa9c-4b99-8872-8206acdd2836
+# ╟─1a7dc8f0-1e1d-4d60-92a9-8bd28dca1586
+# ╟─2d178451-1b30-40ea-82de-77ddddf1fd2e
+# ╟─c60e35fa-97c7-4671-8ec8-5cda067d0780
+# ╟─dcb2cedf-aa9c-4b99-8872-8206acdd2836
+# ╟─10ac120e-0182-49c1-8322-3ff2fb622f34
 # ╟─ad40bbc7-eb5a-41c2-9c47-38a4b6034212
-# ╠═bfb44336-ca3b-4fe0-aacc-cb5d85de9d9a
-# ╠═482c6a29-21ba-4bd3-956d-68afdc77f58b
-# ╠═191ed2d5-fc18-458a-9ca3-9a4b900463bc
-# ╠═86c8e8fc-000d-487b-826e-62adf9c83d50
+# ╟─2e9b9131-2f10-470f-824f-ee0b03e2ca5d
+# ╟─86c8e8fc-000d-487b-826e-62adf9c83d50
+# ╟─4afd9e3e-1d9d-4413-8f4a-1ba4541b70d3
+# ╟─7bc7a29c-d676-4a64-93e5-2bb23e995f3a
 # ╟─df316a1b-0f79-44ae-a9db-d41863709530
+# ╠═882e3118-c321-42b6-b96a-7663a3342739
 # ╠═1bbfb8c4-952d-45c2-880a-89b15ae6ede9
+# ╠═05ee66ba-4f20-41cf-bd37-2dbba4bc40eb
+# ╠═f86d5119-378b-4649-a36f-42762ff9cad3
 # ╟─a1eec5e1-821f-4557-a73d-2ff366eb9e6a
 # ╠═ab672333-8022-41e0-9998-0ac7665a91cf
 # ╟─63172e9b-68da-4bb5-aed1-830832852e8e
 # ╠═ea6e6664-b4e4-4917-9a1c-64738be2c7f6
 # ╟─8772600d-f090-43c2-81ba-4d1ad8f43331
 # ╠═bdfec8b5-297e-4996-b878-dcd6064598d7
-# ╠═c1b3752d-3875-48a4-bd79-971bab44dca1
-# ╟─78aad25d-d5f1-4dfb-9402-80a33cd91748
-# ╠═00dde5a5-b72c-416f-aa42-a77b162680de
-# ╟─7cd75589-baa3-487a-92fb-b9c78e14e25e
-# ╠═7a0ff26a-6db4-443e-b93e-5d62f79d8424
+# ╟─c1b3752d-3875-48a4-bd79-971bab44dca1
 # ╠═7b202300-91ff-45e4-b933-75c6083b256c
-# ╠═1e16d2ca-abbb-4214-a82a-773812bde621
-# ╠═93e8bc54-27e4-4c24-83fb-19d0a2b320b1
 # ╠═ccee3ca7-54a7-406c-be5d-0f604f6bee11
+# ╠═3ce6205b-c27c-4aae-ab9e-99d8eb69e11a
 # ╠═5f3c3d8a-fd2b-4be3-809e-1bf5398a88e2
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
